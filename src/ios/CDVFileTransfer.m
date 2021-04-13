@@ -761,6 +761,18 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
         if (self.targetFileHandle == nil) {
             [self cancelTransferWithError:connection errorMessage:@"Could not open target file for writing"];
         }
+        
+        unsigned long long int offsetInFile;
+        BOOL seekToEndResult = [targetFileHandle seekToEndReturningOffset:&offsetInFile error:&error];
+        if (error) {
+            [self cancelTransferWithError:connection errorMessage:[NSString stringWithFormat:@"Could not seek to end of the file: %@", error.localizedDescription]];
+        }
+        else if (!seekToEndResult) {
+            [self cancelTransferWithError:connection errorMessage:@"Could not seek to end of the file."];
+        } else {
+            DLog(@"Did seek to end of the file, offset is %llu", offsetInFile);
+        }
+
         DLog(@"Streaming to file %@", filePath);
     }
 }
