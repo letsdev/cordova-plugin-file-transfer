@@ -100,6 +100,7 @@ interface FileUploadOptions {
 interface FileDownloadOptions {
     /** A map of header name/header values. */
     headers?: {};
+    appendToFile: false;
 }
 
 /** A FileTransferError object is passed to an error callback when an error occurs. */

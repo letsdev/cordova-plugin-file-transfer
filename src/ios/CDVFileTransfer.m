@@ -104,10 +104,10 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
 {
     [req setValue:@"XMLHttpRequest" forHTTPHeaderField:@"X-Requested-With"];
 
-    NSString* userAgent = [self.commandDelegate userAgent];
-    if (userAgent) {
-        [req setValue:userAgent forHTTPHeaderField:@"User-Agent"];
-    }
+//     NSString* userAgent = [self.commandDelegate userAgent];
+//     if (userAgent) {
+//         [req setValue:userAgent forHTTPHeaderField:@"User-Agent"];
+//     }
 
     for (NSString* headerName in headers) {
         id value = [headers objectForKey:headerName];
@@ -407,11 +407,16 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
 - (void)abort:(CDVInvokedUrlCommand*)command
 {
     NSString* objectId = [command argumentAtIndex:0];
+    NSNumber* delete = [command argumentAtIndex:1];
 
     @synchronized (activeTransfers) {
         CDVFileTransferDelegate* delegate = activeTransfers[objectId];
         if (delegate != nil) {
             [delegate cancelTransfer:delegate.connection];
+            if (delete == YES && delegate.direction == CDV_TRANSFER_DOWNLOAD) {
+                [delegate removeTargetFile];
+            }
+
             CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:[self createFileTransferError:CONNECTION_ABORTED AndSource:delegate.source AndTarget:delegate.target]];
             [self.commandDelegate sendPluginResult:result callbackId:delegate.callbackId];
         }
@@ -426,6 +431,7 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
     BOOL trustAllHosts = [[command argumentAtIndex:2 withDefault:[NSNumber numberWithBool:NO]] boolValue]; // allow self-signed certs
     NSString* objectId = [command argumentAtIndex:3];
     NSDictionary* headers = [command argumentAtIndex:4 withDefault:nil];
+    BOOL appendToFile = [[command argumentAtIndex:5 withDefault:[NSNumber numberWithBool:NO]] boolValue];
 
     CDVPluginResult* result = nil;
     CDVFileTransferError errorCode = 0;
@@ -487,6 +493,7 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
     delegate.backgroundTaskID = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
         [delegate cancelTransfer:delegate.connection];
     }];
+    delegate.appendToFile = appendToFile;
 
     delegate.connection = [[NSURLConnection alloc] initWithRequest:req delegate:delegate startImmediately:NO];
 
@@ -680,10 +687,6 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
         [[UIApplication sharedApplication] endBackgroundTask:delegate.backgroundTaskID];
         delegate.backgroundTaskID = UIBackgroundTaskInvalid;
     }
-
-    if (self.direction == CDV_TRANSFER_DOWNLOAD) {
-        [self removeTargetFile];
-    }
 }
 
 - (void)cancelTransferWithError:(NSURLConnection*)connection errorMessage:(NSString*)errorMessage
@@ -759,15 +762,32 @@ static CFIndex WriteDataToStream(NSData* data, CFWriteStreamRef stream)
             return;
         }
         // create target file
-        if ([[NSFileManager defaultManager] createFileAtPath:filePath contents:nil attributes:nil] == NO) {
-            [self cancelTransferWithError:connection errorMessage:@"Could not create target file"];
-            return;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:filePath] || !_appendToFile) {
+            if ([[NSFileManager defaultManager] createFileAtPath:filePath contents:nil attributes:nil] == NO) {
+                [self cancelTransferWithError:connection errorMessage:@"Could not create target file"];
+                return;
+            }
         }
+
         // open target file for writing
         self.targetFileHandle = [NSFileHandle fileHandleForWritingAtPath:filePath];
         if (self.targetFileHandle == nil) {
             [self cancelTransferWithError:connection errorMessage:@"Could not open target file for writing"];
         }
+
+        if (_appendToFile) {
+            unsigned long long int offsetInFile;
+            BOOL seekToEndResult = [targetFileHandle seekToEndReturningOffset:&offsetInFile error:&error];
+            if (error) {
+                [self cancelTransferWithError:connection errorMessage:[NSString stringWithFormat:@"Could not seek to end of the file: %@", error.localizedDescription]];
+            }
+            else if (!seekToEndResult) {
+                [self cancelTransferWithError:connection errorMessage:@"Could not seek to end of the file."];
+            } else {
+                DLog(@"Did seek to end of the file, offset is %llu", offsetInFile);
+            }
+        }
+
         DLog(@"Streaming to file %@", filePath);
     }
 }

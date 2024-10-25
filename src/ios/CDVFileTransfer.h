@@ -64,6 +64,7 @@ extern NSString* const kOptionsKeyCookie;
 
 - (void)updateBytesExpected:(long long)newBytesExpected;
 - (void)cancelTransfer:(NSURLConnection*)connection;
+- (void)removeTargetFile;
 
 @property (strong) NSMutableData* responseData; // atomic
 @property (nonatomic, strong) NSDictionary* responseHeaders;
@@ -85,5 +86,6 @@ extern NSString* const kOptionsKeyCookie;
 @property (nonatomic, strong) CDVFileTransferEntityLengthRequest* entityLengthRequest;
 @property (nonatomic, strong) CDVFile *filePlugin;
 @property (nonatomic, assign) BOOL chunkedMode;
+@property (nonatomic, assign) BOOL appendToFile;
 
 @end
