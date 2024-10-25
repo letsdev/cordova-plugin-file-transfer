@@ -19,6 +19,8 @@
 #
 -->
 # Release Notes
+### 1.8.0 (Apr 13, 2021)
+* added append-to-file-on-download functionality
                                               
 ### 1.7.1 (Jan 24, 2018)
 * [CB-13749](https://issues.apache.org/jira/browse/CB-13749) Add build-tools-26.0.2 to travis
